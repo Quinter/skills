@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Action Tracker</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --text: #1a1f27; --muted: #667085;
+    --border: #e4e7ec; --accent: #4257d0; --accent-text: #ffffff;
+    --done: #98a2b3; --flag: #b54708; --chip: #eef1f6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151b; --panel: #1a1f27; --text: #e6e9ef; --muted: #8b94a5;
+      --border: #2a3140; --accent: #7b8cff; --accent-text: #12151b;
+      --done: #5b6474; --flag: #f0a45c; --chip: #232a37;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.5 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  header {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 14px 20px; border-bottom: 1px solid var(--border); background: var(--panel);
+    position: sticky; top: 0;
+  }
+  header h1 { font-size: 17px; margin: 0 auto 0 0; }
+  main { max-width: 860px; margin: 0 auto; padding: 20px; }
+  .group {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    margin-bottom: 16px; overflow: hidden;
+  }
+  .group > h2 {
+    font-size: 13px; font-weight: 600; color: var(--muted); text-transform: none;
+    margin: 0; padding: 10px 16px; border-bottom: 1px solid var(--border);
+  }
+  .item {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 10px 16px; border-bottom: 1px solid var(--border);
+  }
+  .item:last-child { border-bottom: none; }
+  .item input[type=checkbox] { margin-top: 4px; width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+  .item .body { flex: 1; min-width: 0; }
+  .item .text { overflow-wrap: anywhere; }
+  .item.done .text { color: var(--done); text-decoration: line-through; }
+  .item .meta { font-size: 12px; color: var(--muted); margin-top: 2px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .chip { background: var(--chip); border-radius: 6px; padding: 1px 7px; }
+  code { background: var(--chip); border-radius: 4px; padding: 1px 5px; font-size: 13px; }
+  button, select, input[type=text] {
+    font: inherit; font-size: 13px; color: var(--text);
+    background: var(--panel); border: 1px solid var(--border); border-radius: 7px; padding: 4px 10px;
+  }
+  button { cursor: pointer; }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  button:hover { filter: brightness(1.08); }
+  .ctx-btn {
+    background: none; border: none; padding: 0; margin-top: 2px;
+    color: var(--accent); font-size: 12px; cursor: pointer;
+  }
+  .ctx-btn:hover { text-decoration: underline; filter: none; }
+  .context {
+    display: none; margin-top: 6px; padding: 8px 12px; font-size: 13px;
+    color: var(--muted); background: var(--chip); border-left: 3px solid var(--border);
+    border-radius: 0 7px 7px 0; white-space: pre-wrap; overflow-wrap: anywhere;
+  }
+  .item.ctx-open .context { display: block; }
+  .jira-row { margin-top: 6px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .jira-row input { width: 110px; }
+  .toolbar { display: flex; gap: 10px; align-items: center; }
+  label.toggle { font-size: 13px; color: var(--muted); display: flex; gap: 5px; align-items: center; cursor: pointer; }
+  .empty { text-align: center; color: var(--muted); padding: 40px 0; }
+  .toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: var(--accent); color: var(--accent-text); border-radius: 8px;
+    padding: 8px 16px; font-size: 13px; opacity: 0; transition: opacity .25s; pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+  footer { text-align: center; color: var(--muted); font-size: 12px; padding: 10px 0 30px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Action Tracker</h1>
+  <div class="toolbar">
+    <select id="groupBy" title="Group items">
+      <option value="session">By session</option>
+      <option value="jira">By Jira ticket</option>
+    </select>
+    <label class="toggle"><input type="checkbox" id="hideDone"> hide done</label>
+  </div>
+</header>
+<main id="main"><div class="empty">Loading…</div></main>
+<footer id="footer"></footer>
+<div class="toast" id="toast"></div>
+
+<script>
+const state = { sessions: [], file: '', groupBy: 'session', hideDone: false, openCtx: new Set() };
+
+function esc(s) {
+  return s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+// minimal inline markdown: **bold**, `code`
+function mdInline(s) {
+  return esc(s)
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>');
+}
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._h);
+  t._h = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+async function load() {
+  try {
+    const r = await fetch('/api/actions');
+    const data = await r.json();
+    const snapshot = JSON.stringify(data);
+    if (snapshot === state.snapshot) return; // avoid re-render wiping in-progress inputs
+    state.snapshot = snapshot;
+    state.sessions = data.sessions;
+    state.file = data.file;
+    render();
+  } catch (e) {
+    document.getElementById('main').innerHTML =
+      '<div class="empty">Server unreachable — is server.mjs still running?</div>';
+  }
+}
+
+function allItems() {
+  return state.sessions.flatMap(s => s.items.map(it => ({ ...it, sessionHeading: s.heading })));
+}
+
+function groups() {
+  if (state.groupBy === 'session') {
+    return state.sessions
+      .map(s => ({ title: s.heading, items: s.items.map(it => ({ ...it, sessionHeading: s.heading })) }))
+      .filter(g => g.items.length);
+  }
+  const byTicket = new Map();
+  for (const it of allItems()) {
+    const key = it.jira || '';
+    if (!byTicket.has(key)) byTicket.set(key, []);
+    byTicket.get(key).push(it);
+  }
+  const out = [...byTicket.entries()]
+    .filter(([k]) => k)
+    .sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }))
+    .map(([k, items]) => ({ title: k, items }));
+  if (byTicket.has('')) out.push({ title: 'No Jira ticket', items: byTicket.get('') });
+  return out;
+}
+
+function jiraPrompt(it) {
+  return `Create a Jira ticket in project CJ for this action item from my action tracker: ` +
+    `"${it.text.replace(/"/g, "'")}"` +
+    (it.project ? ` (repo: ${it.project}` : '(') +
+    (it.sessionHeading ? `${it.project ? ', ' : ''}session: ${it.sessionHeading}` : '') +
+    (it.created ? `, logged: ${it.created}` : '') + `). ` +
+    (it.context ? `Context from when it was logged: ${it.context.replace(/\s+/g, ' ')} ` : '') +
+    `Use the Atlassian MCP tools. Pick a sensible summary and description, then tell me the ` +
+    `ticket key so I can link it in my action tracker (item id ${it.id}).`;
+}
+
+function render() {
+  const main = document.getElementById('main');
+  const gs = groups()
+    .map(g => ({ ...g, items: state.hideDone ? g.items.filter(i => !i.checked) : g.items }))
+    .filter(g => g.items.length);
+
+  if (!gs.length) {
+    main.innerHTML = '<div class="empty">Nothing here. Either you\'re all caught up, or no session has logged an action yet.</div>';
+  } else {
+    main.innerHTML = gs.map(g => `
+      <section class="group">
+        <h2>${mdInline(g.title)}</h2>
+        ${g.items.map(it => `
+          <div class="item ${it.checked ? 'done' : ''} ${state.openCtx.has(it.id) ? 'ctx-open' : ''}" data-id="${esc(it.id)}">
+            <input type="checkbox" ${it.checked ? 'checked' : ''} data-toggle="${esc(it.id)}">
+            <div class="body">
+              <div class="text">${mdInline(it.text)}</div>
+              <div class="meta">
+                ${it.jira ? `<span class="chip">${esc(it.jira)}</span>` : ''}
+                ${state.groupBy === 'jira' && it.sessionHeading ? `<span>${esc(it.sessionHeading)}</span>` : ''}
+                ${it.created ? `<span>logged ${esc(it.created)}</span>` : ''}
+                ${it.done ? `<span>done ${esc(it.done)}</span>` : ''}
+              </div>
+              ${it.context ? `
+                <button class="ctx-btn" data-ctx="${esc(it.id)}">${state.openCtx.has(it.id) ? 'Hide context' : 'Show context'}</button>
+                <div class="context">${mdInline(it.context)}</div>` : ''}
+              ${!it.jira ? `
+                <div class="jira-row">
+                  <button class="primary" data-prompt="${esc(it.id)}">Copy Jira prompt</button>
+                  <input type="text" placeholder="CJ-12345" data-ticket-input="${esc(it.id)}">
+                  <button data-link="${esc(it.id)}">Link ticket</button>
+                </div>` : ''}
+            </div>
+          </div>`).join('')}
+      </section>`).join('');
+  }
+  const items = allItems();
+  document.getElementById('footer').textContent =
+    `${items.filter(i => !i.checked).length} outstanding of ${items.length} · ${state.file}`;
+}
+
+document.getElementById('main').addEventListener('click', async (e) => {
+  const toggleId = e.target.dataset?.toggle;
+  if (toggleId) {
+    const r = await fetch('/api/toggle', { method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({ id: toggleId }) });
+    const out = await r.json();
+    if (!out.ok) toast(out.error || 'toggle failed');
+    await load();
+    return;
+  }
+  const ctxId = e.target.dataset?.ctx;
+  if (ctxId) {
+    state.openCtx.has(ctxId) ? state.openCtx.delete(ctxId) : state.openCtx.add(ctxId);
+    render();
+    return;
+  }
+  const promptId = e.target.dataset?.prompt;
+  if (promptId) {
+    const it = allItems().find(i => i.id === promptId);
+    try {
+      await navigator.clipboard.writeText(jiraPrompt(it));
+      toast('Prompt copied — paste it into a Claude session');
+    } catch {
+      window.prompt('Copy this prompt:', jiraPrompt(it));
+    }
+    return;
+  }
+  const linkId = e.target.dataset?.link;
+  if (linkId) {
+    const input = document.querySelector(`[data-ticket-input="${linkId}"]`);
+    const ticket = (input?.value || '').trim();
+    if (!ticket) { toast('Enter a ticket key first (e.g. CJ-12345)'); return; }
+    const r = await fetch('/api/set-jira', { method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({ id: linkId, ticket }) });
+    const out = await r.json();
+    toast(out.ok ? `Linked ${ticket.toUpperCase()}` : (out.error || 'failed'));
+    await load();
+  }
+});
+
+document.getElementById('groupBy').addEventListener('change', (e) => { state.groupBy = e.target.value; render(); });
+document.getElementById('hideDone').addEventListener('change', (e) => { state.hideDone = e.target.checked; render(); });
+
+load();
+setInterval(load, 5000);
+</script>
+</body>
+</html>
