@@ -57,6 +57,54 @@ While the mode is active, the agent composes its complete answer first, silently
 
 Some responses are never compressed: security warnings, anything concerning destructive or irreversible actions, and answers that are primarily code. You always get those in full.
 
+# action-tracker
+
+A persistent, cross-session checklist of the things only *you* can do — sessions log them, a tiny local website lets you check them off.
+
+## Why
+
+Agent sessions constantly need something from you: approve a PR, run `gcloud auth login`, make a release call. Those asks scroll away and get forgotten. Action-tracker gives every session one shared markdown file (`~/.claude/action-tracker/actions.md`) to log required user-actions into, sorted by session and Jira ticket. Sessions also read it back to know what you've done — but verify against reality (gh, git, code) and flag mismatches instead of trusting checkboxes blindly.
+
+## Install
+
+```bash
+npx skills add Quinter/skills@action-tracker
+```
+
+On first use the skill asks which mode you want and saves it to `~/.claude/action-tracker/config.json`:
+
+- **auto** — every session logs required user-actions automatically as it hits them
+- **manual** — sessions only touch the tracker when you invoke `/action-tracker`
+
+Switch any time with `/action-tracker mode auto|manual`.
+
+## Usage
+
+| Command | Effect |
+| --- | --- |
+| `/action-tracker` | Show outstanding actions, with a verification pass against reality |
+| `/action-tracker log <text>` | Log an item now |
+| `/action-tracker serve` | Start the checklist website at `http://127.0.0.1:4173` |
+| `/action-tracker mode auto\|manual` | Switch logging mode |
+
+The website can also be started directly:
+
+```bash
+node ~/.claude/skills/action-tracker/site/server.mjs   # --port to change, default 4173
+```
+
+## The website
+
+Zero-dependency (Node ≥ 18, no install). It reads and rewrites `actions.md` in place:
+
+- group by **session** or by **Jira ticket**, hide done items
+- checkbox click marks an item done (timestamped)
+- items without a ticket get a **Copy Jira prompt** button — it copies a ready-made request to your clipboard; paste it into any Claude session with the Atlassian MCP and it creates the ticket. Paste the resulting key back into the item's **Link ticket** field to attach it.
+
+## Data
+
+Everything lives in `~/.claude/action-tracker/actions.md` — plain markdown checkboxes with metadata in HTML comments, safe to edit by hand. The file is the single source of truth; the site and sessions both read it fresh on every access.
+
 ## License
 
 MIT
