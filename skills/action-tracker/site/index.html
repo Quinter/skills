@@ -56,6 +56,17 @@
   button { cursor: pointer; }
   button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
   button:hover { filter: brightness(1.08); }
+  .ctx-btn {
+    background: none; border: none; padding: 0; margin-top: 2px;
+    color: var(--accent); font-size: 12px; cursor: pointer;
+  }
+  .ctx-btn:hover { text-decoration: underline; filter: none; }
+  .context {
+    display: none; margin-top: 6px; padding: 8px 12px; font-size: 13px;
+    color: var(--muted); background: var(--chip); border-left: 3px solid var(--border);
+    border-radius: 0 7px 7px 0; white-space: pre-wrap; overflow-wrap: anywhere;
+  }
+  .item.ctx-open .context { display: block; }
   .jira-row { margin-top: 6px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
   .jira-row input { width: 110px; }
   .toolbar { display: flex; gap: 10px; align-items: center; }
@@ -86,7 +97,7 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const state = { sessions: [], file: '', groupBy: 'session', hideDone: false };
+const state = { sessions: [], file: '', groupBy: 'session', hideDone: false, openCtx: new Set() };
 
 function esc(s) {
   return s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -152,6 +163,7 @@ function jiraPrompt(it) {
     (it.project ? ` (repo: ${it.project}` : '(') +
     (it.sessionHeading ? `${it.project ? ', ' : ''}session: ${it.sessionHeading}` : '') +
     (it.created ? `, logged: ${it.created}` : '') + `). ` +
+    (it.context ? `Context from when it was logged: ${it.context.replace(/\s+/g, ' ')} ` : '') +
     `Use the Atlassian MCP tools. Pick a sensible summary and description, then tell me the ` +
     `ticket key so I can link it in my action tracker (item id ${it.id}).`;
 }
@@ -169,7 +181,7 @@ function render() {
       <section class="group">
         <h2>${mdInline(g.title)}</h2>
         ${g.items.map(it => `
-          <div class="item ${it.checked ? 'done' : ''}" data-id="${esc(it.id)}">
+          <div class="item ${it.checked ? 'done' : ''} ${state.openCtx.has(it.id) ? 'ctx-open' : ''}" data-id="${esc(it.id)}">
             <input type="checkbox" ${it.checked ? 'checked' : ''} data-toggle="${esc(it.id)}">
             <div class="body">
               <div class="text">${mdInline(it.text)}</div>
@@ -179,6 +191,9 @@ function render() {
                 ${it.created ? `<span>logged ${esc(it.created)}</span>` : ''}
                 ${it.done ? `<span>done ${esc(it.done)}</span>` : ''}
               </div>
+              ${it.context ? `
+                <button class="ctx-btn" data-ctx="${esc(it.id)}">${state.openCtx.has(it.id) ? 'Hide context' : 'Show context'}</button>
+                <div class="context">${mdInline(it.context)}</div>` : ''}
               ${!it.jira ? `
                 <div class="jira-row">
                   <button class="primary" data-prompt="${esc(it.id)}">Copy Jira prompt</button>
@@ -201,6 +216,12 @@ document.getElementById('main').addEventListener('click', async (e) => {
     const out = await r.json();
     if (!out.ok) toast(out.error || 'toggle failed');
     await load();
+    return;
+  }
+  const ctxId = e.target.dataset?.ctx;
+  if (ctxId) {
+    state.openCtx.has(ctxId) ? state.openCtx.delete(ctxId) : state.openCtx.add(ctxId);
+    render();
     return;
   }
   const promptId = e.target.dataset?.prompt;

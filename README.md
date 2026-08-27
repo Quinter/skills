@@ -99,11 +99,12 @@ Zero-dependency (Node ≥ 18, no install). It reads and rewrites `actions.md` in
 
 - group by **session** or by **Jira ticket**, hide done items
 - checkbox click marks an item done (timestamped)
+- each item carries the conversation context from the moment it was logged, collapsed behind a **Show context** button
 - items without a ticket get a **Copy Jira prompt** button — it copies a ready-made request to your clipboard; paste it into any Claude session with the Atlassian MCP and it creates the ticket. Paste the resulting key back into the item's **Link ticket** field to attach it.
 
 ## Data
 
-Everything lives in `~/.claude/action-tracker/actions.md` — plain markdown checkboxes with metadata in HTML comments, safe to edit by hand. The file is the single source of truth; the site and sessions both read it fresh on every access.
+Everything lives in `~/.claude/action-tracker/actions.md` — plain markdown checkboxes with metadata in HTML comments, plus indented `> ` context lines under each item, safe to edit by hand. The file is the single source of truth; the site and sessions both read it fresh on every access.
 
 ## License
 

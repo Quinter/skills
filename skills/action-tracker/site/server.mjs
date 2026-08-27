@@ -19,6 +19,7 @@ const PORT = portArg !== -1 ? Number(process.argv[portArg + 1]) : 4173;
 
 const META_RE = /<!--\s*at:(.*?)\s*-->\s*$/;
 const ITEM_RE = /^- \[( |x|X)\] (.*)$/;
+const CONTEXT_RE = /^ {2}> ?(.*)$/;
 
 function parseMeta(metaStr) {
   // "id=k3f9x2 jira=CJ-12529 project=sor-client session=007f7f3b created=... done=..."
@@ -44,22 +45,32 @@ function parseActions(content) {
   const lines = content.split('\n');
   const sessions = [];
   let current = null;
+  let lastItem = null;
   lines.forEach((line, i) => {
     if (line.startsWith('## ')) {
       current = { heading: line.slice(3).trim(), items: [] };
       sessions.push(current);
+      lastItem = null;
+      return;
+    }
+    const ctx = line.match(CONTEXT_RE);
+    if (ctx && lastItem) {
+      lastItem.context += (lastItem.context ? '\n' : '') + ctx[1];
       return;
     }
     const m = line.match(ITEM_RE);
-    if (!m) return;
+    if (!m) {
+      if (line.trim()) lastItem = null; // blank lines don't break a context block
+      return;
+    }
     const metaMatch = m[2].match(META_RE);
     const meta = metaMatch ? parseMeta(metaMatch[1]) : {};
-    if (!meta.id) return; // not an action-tracker item
+    if (!meta.id) { lastItem = null; return; } // not an action-tracker item
     if (!current) {
       current = { heading: '(no session)', items: [] };
       sessions.push(current);
     }
-    current.items.push({
+    lastItem = {
       id: meta.id,
       text: m[2].replace(META_RE, '').trim(),
       checked: m[1].toLowerCase() === 'x',
@@ -68,8 +79,10 @@ function parseActions(content) {
       session: meta.session || '',
       created: meta.created || '',
       done: meta.done || '',
+      context: '',
       lineNo: i,
-    });
+    };
+    current.items.push(lastItem);
   });
   return sessions;
 }

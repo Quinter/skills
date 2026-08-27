@@ -36,6 +36,8 @@ The user can switch modes any time: `/action-tracker mode auto|manual` (or askin
 ## 2026-08-27 — sor-client — fixing OKX balance retention
 
 - [ ] Approve and merge PR #8175 **CJ-12529** <!-- at:id=k3f9x2 jira=CJ-12529 project=sor-client session=007f7f3b created=2026-08-27T14:05Z -->
+  > The OKX balance-retention fix is done and CI is green, but the repo requires a human
+  > approval before merge. Once merged it still needs the develop backport (separate item).
 - [x] Run `gcloud auth login` in a terminal <!-- at:id=m1q8z4 jira= project=sor-client session=007f7f3b created=2026-08-27T14:20Z done=2026-08-27T15:00Z -->
 ```
 
@@ -43,6 +45,7 @@ Rules:
 
 - One `##` heading per session: `## <YYYY-MM-DD> — <repo/project dir name> — <one-line session description>`. Create it the first time this session logs an item; reuse it for later items in the same session.
 - Each item is a single `- [ ]` line ending in an HTML comment of the exact shape `<!-- at:id=XXXXXX jira=... project=... session=... created=... -->` (plus `done=...` once checked). No newlines inside an item.
+- **Context block** (strongly encouraged): immediately below the item line, add 1–6 lines each starting with exactly `  > ` (two spaces, `>`, space) capturing the conversation context at the moment the action arose — what was being worked on, why the action is needed, and any detail the user will want when they see the item cold days later. The website shows this collapsed behind a "Show context" button. Context lines belong to the item line above them; keep them free of `<!-- at: -->` comments.
 - `id` — 6 random lowercase alphanumeric chars, unique in the file. Generate fresh per item.
 - `jira` — the ticket key (e.g. `CJ-12529`) when known from the branch, conversation, or context; empty otherwise. When known, also put `**CJ-xxxx**` in the visible text.
 - `session` — a short stable identifier for this session (first 8 chars of the session ID if known, else the date+description suffice).
@@ -56,7 +59,7 @@ Rules:
 When the session needs the user to do something it cannot do itself — merge/approve a PR, run an interactive command (`gcloud auth login`, MFA), decide something, act on an external system:
 
 1. Re-read `actions.md`. If an equivalent item already exists unchecked, don't duplicate it.
-2. Append the item under this session's heading (creating the heading if needed), following the format above.
+2. Append the item under this session's heading (creating the heading if needed), following the format above — including a `  > ` context block quoting or tightly paraphrasing the surrounding explanation from this moment in the conversation, so the item makes sense on its own later.
 3. Tell the user in one line, e.g. `Logged to action tracker: "Approve PR #8175" (CJ-12529).`
 
 Log real user-actions only — not the agent's own todo items, and not things the user already did.
