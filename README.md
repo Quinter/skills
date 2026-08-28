@@ -102,6 +102,19 @@ Zero-dependency (Node ≥ 18, no install). It reads and rewrites `actions.md` in
 - each item carries the conversation context from the moment it was logged, collapsed behind a **Show context** button
 - items without a ticket get a **Copy Jira prompt** button — it copies a ready-made request to your clipboard; paste it into any Claude session with the Atlassian MCP and it creates the ticket. Paste the resulting key back into the item's **Link ticket** field to attach it.
 
+## Menu-bar app (macOS)
+
+The same website, packaged as an Electron menu-bar app: a ☑ icon with the outstanding count, click for the checklist popover, right-click for Open in Browser / Launch at Login / Quit. It embeds the same server and reads the same file — if the CLI server is already running on the port, the app just reuses it.
+
+```bash
+cd skills/action-tracker/app
+npm install
+npm start        # run it
+npm run dist     # build dist/Action Tracker-<version>-arm64.dmg (unsigned)
+```
+
+The dmg is unsigned — on first open, right-click the app → Open to get past Gatekeeper.
+
 ## Data
 
 Everything lives in `~/.claude/action-tracker/actions.md` — plain markdown checkboxes with metadata in HTML comments, plus indented `> ` context lines under each item, safe to edit by hand. The file is the single source of truth; the site and sessions both read it fresh on every access.

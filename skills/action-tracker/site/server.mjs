@@ -167,7 +167,7 @@ function readBody(req) {
   });
 }
 
-const server = http.createServer(async (req, res) => {
+const handler = async (req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host}`);
     if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
@@ -196,9 +196,20 @@ const server = http.createServer(async (req, res) => {
   } catch (err) {
     json(res, 500, { ok: false, error: String(err.message || err) });
   }
-});
+};
 
-server.listen(PORT, '127.0.0.1', () => {
-  console.log(`Action Tracker: http://127.0.0.1:${PORT}`);
-  console.log(`Actions file:   ${ACTIONS_FILE}`);
-});
+export { ACTIONS_FILE, parseActions, readFileSafe };
+
+export function startServer(port = PORT) {
+  const server = http.createServer(handler);
+  server.listen(port, '127.0.0.1', () => {
+    console.log(`Action Tracker: http://127.0.0.1:${port}`);
+    console.log(`Actions file:   ${ACTIONS_FILE}`);
+  });
+  return server;
+}
+
+// CLI entrypoint: `node server.mjs [--port N]`
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  startServer();
+}
